@@ -1,0 +1,39 @@
+# Gevoelige bestanden - NOOIT committen!
+*_api_key*.txt
+*_token*.txt
+*_secret*.txt
+*.pem
+*.key
+*.p12
+
+# Data bestanden
+*.json
+*.csv
+*.db
+*.sqlite
+
+# Logs
+*.log
+logs/
+
+# OS bestanden
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Node
+node_modules/
+
+# Tijdelijke bestanden
+tmp/
+temp/
+*.tmp
