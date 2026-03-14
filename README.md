@@ -47,7 +47,13 @@ Deze repository bevat geautomatiseerde taken die door Agent Zero worden uitgevoe
 
 **Beschrijving:**
 - Schoont voltooide eenmalige taken op uit de scheduler
-- Stuurt Telegram notificatie bij verwijderde taken
+- Stuurt **ALTIJD** Telegram notificatie (ook als er niets verwijderd is)
+- Bevestigt dat de scheduler clean is
+
+**Kenmerken:**
+- Verwijdert alleen voltooide 'planned' taken
+- Laat recurring 'scheduled' taken met rust
+- Stuurt dagelijkse bevestiging via Telegram
 
 ---
 
@@ -76,11 +82,18 @@ De sudoku taak gebruikt een Cloudflare tunnel:
 ```
 agent-zero-tasks/
 ├── README.md
+├── .gitignore
 ├── sudoku/
 │   └── daily_sudoku.py
 └── openrouter/
     └── openrouter_reporter.py
 ```
+
+## 🔄 Update Policy
+
+- **Scripts worden altijd naar deze repo gepusht bij wijzigingen**
+- **Geen persoonlijke data in de repo** (API keys, tokens, emails)
+- **Alle secrets via environment variables of externe bestanden**
 
 ---
 
