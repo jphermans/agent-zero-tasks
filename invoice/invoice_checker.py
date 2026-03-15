@@ -11,7 +11,7 @@ import os
 import re
 import fitz  # PyMuPDF
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import tempfile
 from typing import Optional, Tuple, List, Dict
 from collections import defaultdict
@@ -100,8 +100,8 @@ def search_invoice_emails(mail: imaplib.IMAP4_SSL) -> List[Tuple[str, email.mess
     invoice_emails = []
     
     # Get today's date in IMAP format (02-Mar-2026)
-    today = datetime.now().strftime("%d-%b-%Y")
-    print(f"   📅 Filtering for date: {today}")
+    search_date = (datetime.now() - timedelta(days=2)).strftime("%d-%b-%Y")  # Search last 3 days
+    print(f"   📅 Filtering for date: {search_date} (last 3 days)")
     
     # Load already processed email IDs
     processed_ids = load_processed_ids()
@@ -111,7 +111,7 @@ def search_invoice_emails(mail: imaplib.IMAP4_SSL) -> List[Tuple[str, email.mess
     for keyword in INVOICE_KEYWORDS:
         try:
             # SINCE filters emails from today onwards
-            status, messages = mail.search(None, f'(SUBJECT "{keyword}" SINCE {today})')
+            status, messages = mail.search(None, f'(SUBJECT "{keyword}" SINCE {search_date})')
             if status != "OK":
                 continue
                 
