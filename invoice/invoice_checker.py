@@ -28,7 +28,7 @@ def load_processed_ids() -> set:
                 data = json.load(f)
                 # Clean old entries (older than 7 days)
                 today = datetime.now().date()
-                cleaned = {k: v for k, v in data.items() 
+                cleaned = {k: v for k, v in data.items()
                           if (today - datetime.strptime(v, '%Y-%m-%d').date()).days < 7}
                 return set(cleaned.keys())
         except:
@@ -65,8 +65,8 @@ def configure(fastmail_user, fastmail_password, telegram_token, telegram_user_id
     TELEGRAM_BOT_TOKEN = telegram_token
     TELEGRAM_USER_ID = telegram_user_id
 
-# Keywords to search for in email subjects
-INVOICE_KEYWORDS = ["invoice", "faktuur", "rechnung", "facture", "factura"]
+# Keywords to search for in email subjects - uitgebreid met NL termen
+INVOICE_KEYWORDS = ["invoice", "invoices", "factuur", "facturen", "faktuur", "rechnung", "facture", "factura"]
 
 def decode_mime_words(s: str) -> str:
     """Decode MIME encoded words in email headers"""
@@ -223,7 +223,7 @@ def extract_invoice_data(pdf_data: bytes) -> Dict:
         if lines:
             # First non-empty lines often contain sender info
             for line in lines[:10]:
-                if len(line) > 3 and not re.match(r'^(invoice|faktuur|rechnung|date|page)\b', line.lower()):
+                if len(line) > 3 and not re.match(r'^(invoice|faktuur|factuur|rechnung|date|page)\b', line.lower()):
                     result["sender"] = line[:50]
                     break
         
@@ -233,62 +233,65 @@ def extract_invoice_data(pdf_data: bytes) -> Dict:
     return result
 
 def send_telegram_message(invoices: List[Dict]) -> bool:
-    """Send formatted Telegram message with invoice info"""
+    """Send formatted Telegram message with invoice info - ALWAYS sends a message"""
+    
     if not invoices:
-        print("ℹ️ No invoices to report")
-        return True
-    
-    # Group invoices by sender domain
-    by_sender = defaultdict(list)
-    for inv in invoices:
-        sender = inv.get('email_sender', 'Unknown')
-        # Extract domain or company name
-        if '<' in sender:
-            domain = sender.split('@')[-1].split('>')[0].split('.')[0]
-        else:
-            domain = sender.split()[0] if sender.split() else 'Unknown'
-        by_sender[domain].append(inv)
-    
-    # Build compact summary message
-    message = "🧾 *Invoice Checker Report*\n\n"
-    message += f"📊 Found *{len(invoices)}* invoices with PDFs\n\n"
-    
-    # Group summary
-    message += "*By Provider:*\n"
-    for sender, invs in sorted(by_sender.items(), key=lambda x: -len(x[1]))[:10]:
-        message += f"• {sender.title()}: {len(invs)} invoice(s)\n"
-    
-    # Calculate total (try to extract numeric amounts)
-    total = 0.0
-    currency = "€"
-    for inv in invoices:
-        amt = inv.get('amount', '')
-        if amt:
-            # Try to extract number
-            nums = re.findall(r'[\d.]+', str(amt).replace(',', '.'))
-            if nums:
-                try:
-                    total += float(nums[0])
-                except:
-                    pass
-            if 'EUR' in str(amt) or '€' in str(amt):
-                currency = "€"
-            elif 'USD' in str(amt) or '$' in str(amt):
-                currency = "$"
-    
-    message += f"\n💰 *Total detected:* {currency}{total:.2f}\n"
-    
-    # Recent/upcoming due dates
-    due_dates = []
-    for inv in invoices:
-        if inv.get('due_date'):
-            due_dates.append((inv.get('due_date'), inv.get('sender', 'Unknown')[:20]))
-    
-    if due_dates:
-        message += f"\n📅 *Due dates found:* {len(due_dates)}\n"
-        message += "Recent: " + ", ".join([d[0] for d in due_dates[-3:]])
-    
-    message += f"\n\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        # No invoices found - still send notification
+        message = "🧾 *Invoice Checker Report*\n\n"
+        message += "📭 Geen nieuwe facturen gevonden vandaag\n\n"
+        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    else:
+        # Group invoices by sender domain
+        by_sender = defaultdict(list)
+        for inv in invoices:
+            sender = inv.get('email_sender', 'Unknown')
+            # Extract domain or company name
+            if '<' in sender:
+                domain = sender.split('@')[-1].split('>')[0].split('.')[0]
+            else:
+                domain = sender.split()[0] if sender.split() else 'Unknown'
+            by_sender[domain].append(inv)
+        
+        # Build compact summary message
+        message = "🧾 *Invoice Checker Report*\n\n"
+        message += f"📊 Found *{len(invoices)}* invoices with PDFs\n\n"
+        
+        # Group summary
+        message += "*By Provider:*\n"
+        for sender, invs in sorted(by_sender.items(), key=lambda x: -len(x[1]))[:10]:
+            message += f"• {sender.title()}: {len(invs)} invoice(s)\n"
+        
+        # Calculate total (try to extract numeric amounts)
+        total = 0.0
+        currency = "€"
+        for inv in invoices:
+            amt = inv.get('amount', '')
+            if amt:
+                # Try to extract number
+                nums = re.findall(r'[\d.]+', str(amt).replace(',', '.'))
+                if nums:
+                    try:
+                        total += float(nums[0])
+                    except:
+                        pass
+                if 'EUR' in str(amt) or '€' in str(amt):
+                    currency = "€"
+                elif 'USD' in str(amt) or '$' in str(amt):
+                    currency = "$"
+        
+        message += f"\n💰 *Total detected:* {currency}{total:.2f}\n"
+        
+        # Recent/upcoming due dates
+        due_dates = []
+        for inv in invoices:
+            if inv.get('due_date'):
+                due_dates.append((inv.get('due_date'), inv.get('sender', 'Unknown')[:20]))
+        
+        if due_dates:
+            message += f"\n📅 *Due dates found:* {len(due_dates)}\n"
+            message += "Recent: " + ", ".join([d[0] for d in due_dates[-3:]])
+        
+        message += f"\n\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     
     # Send via Telegram API
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -361,7 +364,7 @@ def main():
                     # Still mark as processed to avoid re-checking
                     save_processed_id(msg_id)
         
-        # Send Telegram notification
+        # Send Telegram notification - ALWAYS, even if no invoices
         print("\n" + "-"*50)
         send_telegram_message(invoices_found)
         
