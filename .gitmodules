@@ -1,0 +1,3 @@
+[submodule "woordzoeker"]
+	path = woordzoeker
+	url = https://github.com/jphermans/woordzoeker.git
