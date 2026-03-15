@@ -12,6 +12,10 @@ import re
 import fitz  # PyMuPDF
 import requests
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+# Belgische tijdzone
+def get_be_time():
+    return datetime.now(ZoneInfo("Europe/Brussels"))
 import tempfile
 from typing import Optional, Tuple, List, Dict
 from collections import defaultdict
@@ -27,7 +31,7 @@ def load_processed_ids() -> set:
             with open(PROCESSED_FILE, 'r') as f:
                 data = json.load(f)
                 # Clean old entries (older than 7 days)
-                today = datetime.now().date()
+                today = get_be_time().date()
                 cleaned = {k: v for k, v in data.items()
                           if (today - datetime.strptime(v, '%Y-%m-%d').date()).days < 7}
                 return set(cleaned.keys())
@@ -44,7 +48,7 @@ def save_processed_id(msg_id: str):
                 processed = json.load(f)
         except:
             pass
-    processed[msg_id] = datetime.now().strftime('%Y-%m-%d')
+    processed[msg_id] = get_be_time().strftime('%Y-%m-%d')
     with open(PROCESSED_FILE, 'w') as f:
         json.dump(processed, f)
 
@@ -174,7 +178,7 @@ def search_invoice_emails(mail: imaplib.IMAP4_SSL) -> List[Tuple[str, email.mess
     invoice_emails = []
     
     # Search last 3 days
-    search_date = (datetime.now() - timedelta(days=2)).strftime("%d-%b-%Y")
+    search_date = (get_be_time() - timedelta(days=2)).strftime("%d-%b-%Y")
     print(f"   📅 Filtering for date: {search_date} (last 3 days)")
     
     # Load already processed email IDs
@@ -302,7 +306,7 @@ def send_telegram_message(invoices: List[Dict], emails_without_pdf: List[Dict]) 
     if total_items == 0:
         message = "🧾 *Invoice Checker Report*\n\n"
         message += "📭 Geen nieuwe facturen gevonden\n\n"
-        message += f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        message += f"⏰ {get_be_time().strftime('%Y-%m-%d %H:%M')}"
     else:
         message = "🧾 *Invoice Checker Report*\n\n"
         
@@ -341,7 +345,7 @@ def send_telegram_message(invoices: List[Dict], emails_without_pdf: List[Dict]) 
             if len(emails_without_pdf) > 5:
                 message += f"  _... en nog {len(emails_without_pdf)-5} meer_\n"
         
-        message += f"\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        message += f"\n⏰ {get_be_time().strftime('%Y-%m-%d %H:%M')}"
     
     # Send via Telegram API
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
