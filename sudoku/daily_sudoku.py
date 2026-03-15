@@ -11,8 +11,9 @@ import os
 import glob
 from datetime import datetime
 
-BOT_TOKEN = "8503543419:AAEegQ4TY-RM3U9zHphjyXZVMsTCd5QMcLQ"
-CHAT_ID = "365354820"
+# Haal tokens uit omgevingsvariabelen (veiliger dan hardcoden)
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID = os.environ.get("TELEGRAM_USERID", "")
 BASE_DIR = "/a0/usr/workdir/sudoku_data"
 SUDOKU_FILE = f"{BASE_DIR}/sudoku.html"
 SOLUTION_FILE = f"{BASE_DIR}/latest_solution.json"
@@ -109,6 +110,9 @@ def make_html(p, s, d):
     return html
 
 def send(msg):
+    if not BOT_TOKEN or not CHAT_ID:
+        print("Waarschuwing: TELEGRAM_BOT_TOKEN of TELEGRAM_USERID niet ingesteld")
+        return
     r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=10)
     print("Verstuurd" if r.json().get("ok") else f"Fout: {r.json()}")
