@@ -77,10 +77,10 @@ def make_sudoku(date_str):
     sol = [r[:] for r in b]
     
     # Verwijder cellen voor de puzzle - minder verwijderen = makkelijker
-    # 28-30 lege cellen = makkelijk, 35 = gemiddeld, 40+ = moeilijk
+    # 28-30 lege cellen = makkelijk, 35 = gemiddeld, 38 = lastig, 40+ = expert
     pos = [(i,j) for i in range(9) for j in range(9)]
     random.shuffle(pos)
-    for i,j in pos[:28]:  # 28 lege cellen = makkelijker puzzle
+    for i,j in pos[:38]:  # 38 lege cellen = moeilijker puzzle
         b[i][j] = 0
     
     # Reset random seed voor toekomstige random operaties
