@@ -8,6 +8,7 @@ import subprocess
 import re
 import time
 import os
+import glob
 from datetime import datetime
 
 BOT_TOKEN = "8503543419:AAEegQ4TY-RM3U9zHphjyXZVMsTCd5QMcLQ"
@@ -112,6 +113,20 @@ def send(msg):
         json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=10)
     print("Verstuurd" if r.json().get("ok") else f"Fout: {r.json()}")
 
+def cleanup_old_sudokus(today):
+    """Verwijder oude sudoku bestanden behalve die van vandaag"""
+    pattern = f"{BASE_DIR}/sudoku_*.html"
+    old_files = glob.glob(pattern)
+    today_file = f"{BASE_DIR}/sudoku_{today}.html"
+    
+    for f in old_files:
+        if f != today_file:
+            try:
+                os.remove(f)
+                print(f"Oude sudoku verwijderd: {os.path.basename(f)}")
+            except Exception as e:
+                print(f"Kon niet verwijderen {f}: {e}")
+
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
     print(f"=== Sudoku {today} ===")
@@ -150,6 +165,9 @@ def main():
             json.dump({"date": today, "solution": s}, f)
         
         print(f"Nieuwe sudoku gegenereerd voor {today}")
+        
+        # Verwijder oude sudoku bestanden na succesvolle generatie
+        cleanup_old_sudokus(today)
 
     # Start tunnel
     stop_tunnels()
