@@ -114,18 +114,19 @@ def send(msg):
     print("Verstuurd" if r.json().get("ok") else f"Fout: {r.json()}")
 
 def cleanup_old_sudokus(today):
-    """Verwijder oude sudoku bestanden behalve die van vandaag"""
-    pattern = f"{BASE_DIR}/sudoku_*.html"
-    old_files = glob.glob(pattern)
-    today_file = f"{BASE_DIR}/sudoku_{today}.html"
+    """Verwijder oude sudoku bestanden behalve die van vandaag
+    Alleen datum-formaat: sudoku_YYYY-MM-DD.html"""
+    import re
+    date_pattern = re.compile(r'sudoku_\d{4}-\d{2}-\d{2}\.html$')
     
-    for f in old_files:
-        if f != today_file:
-            try:
-                os.remove(f)
-                print(f"Oude sudoku verwijderd: {os.path.basename(f)}")
-            except Exception as e:
-                print(f"Kon niet verwijderen {f}: {e}")
+    for f in os.listdir(BASE_DIR):
+        if date_pattern.match(f):
+            if f != f"sudoku_{today}.html":
+                try:
+                    os.remove(os.path.join(BASE_DIR, f))
+                    print(f"Oude sudoku verwijderd: {f}")
+                except Exception as e:
+                    print(f"Kon niet verwijderen {f}: {e}")
 
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
