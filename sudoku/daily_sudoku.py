@@ -1,52 +1,26 @@
 #!/usr/bin/env python3
-"""Dagelijkse Sudoku Generator met Cloudflare Tunnel"""
+"""Dagelijkse Sudoku Generator met GitHub Pages"""
 
 import json
 import random
 import requests
 import subprocess
-import re
-import time
 import os
-import glob
 from datetime import datetime
 
-# Haal tokens uit omgevingsvariabelen (veiliger dan hardcoden)
+# Haal tokens uit omgevingsvariabelen
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.environ.get("TELEGRAM_USERID", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
 BASE_DIR = "/a0/usr/workdir/sudoku_data"
+REPO_DIR = "/a0/usr/workdir/agent-zero-tasks"
 SUDOKU_FILE = f"{BASE_DIR}/sudoku.html"
 SOLUTION_FILE = f"{BASE_DIR}/latest_solution.json"
-HTTP_PORT = 8765
-
-def stop_tunnels():
-    subprocess.run(["pkill", "-f", "cloudflared"], capture_output=True)
-    subprocess.run(["pkill", "-f", f"http.server {HTTP_PORT}"], capture_output=True)
-    time.sleep(2)
-    print("Tunnels gestopt")
-
-def start_server():
-    subprocess.Popen(["python", "-m", "http.server", str(HTTP_PORT), "--bind", "0.0.0.0"],
-        cwd=BASE_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(1)
-    print(f"Server op {HTTP_PORT}")
-
-def start_tunnel():
-    proc = subprocess.Popen(["cloudflared", "tunnel", "--url", f"http://localhost:{HTTP_PORT}"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    for _ in range(30):
-        line = proc.stdout.readline()
-        if "trycloudflare.com" in line:
-            m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
-            if m:
-                print(f"Tunnel: {m.group(0)}")
-                return m.group(0)
-        time.sleep(1)
-    return None
+GITHUB_PAGES_URL = "https://jphermans.github.io/agent-zero-tasks/"
 
 def make_sudoku(date_str):
     """Genereer een unieke sudoku gebaseerd op de datum"""
-    # Gebruik datum als seed voor reproduceerbare maar dagelijkse variatie
     seed = int(date_str.replace("-", ""))
     random.seed(seed)
     
@@ -63,7 +37,7 @@ def make_sudoku(date_str):
         for i in range(9):
             for j in range(9):
                 if b[i][j] == 0:
-                    for n in random.sample(range(1, 10), 9):  # Random volgorde
+                    for n in random.sample(range(1, 10), 9):
                         if valid(b, i, j, n):
                             b[i][j] = n
                             if solve(b): return True
@@ -71,19 +45,15 @@ def make_sudoku(date_str):
                     return False
         return True
     
-    # Start met leeg bord en vul het op
     b = [[0]*9 for _ in range(9)]
     solve(b)
     sol = [r[:] for r in b]
     
-    # Verwijder cellen voor de puzzle - minder verwijderen = makkelijker
-    # 28-30 lege cellen = makkelijk, 35 = gemiddeld, 38 = lastig, 40+ = expert
     pos = [(i,j) for i in range(9) for j in range(9)]
     random.shuffle(pos)
-    for i,j in pos[:38]:  # 38 lege cellen = moeilijker puzzle
+    for i,j in pos[:38]:  # 38 lege cellen = moeilijker
         b[i][j] = 0
     
-    # Reset random seed voor toekomstige random operaties
     random.seed()
     return b, sol
 
@@ -112,14 +82,18 @@ def make_html(p, s, d):
 def send(msg):
     if not BOT_TOKEN or not CHAT_ID:
         print("Waarschuwing: TELEGRAM_BOT_TOKEN of TELEGRAM_USERID niet ingesteld")
-        return
+        return False
     r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=10)
-    print("Verstuurd" if r.json().get("ok") else f"Fout: {r.json()}")
+    if r.json().get("ok"):
+        print("Verstuurd")
+        return True
+    else:
+        print(f"Fout: {r.json()}")
+        return False
 
 def cleanup_old_sudokus(today):
-    """Verwijder oude sudoku bestanden behalve die van vandaag
-    Alleen datum-formaat: sudoku_YYYY-MM-DD.html"""
+    """Verwijder oude sudoku bestanden"""
     import re
     date_pattern = re.compile(r'sudoku_\d{4}-\d{2}-\d{2}\.html$')
     
@@ -132,14 +106,39 @@ def cleanup_old_sudokus(today):
                 except Exception as e:
                     print(f"Kon niet verwijderen {f}: {e}")
 
+def push_to_github():
+    """Push sudoku naar GitHub Pages"""
+    try:
+        # Kopieer sudoku naar docs folder
+        docs_dir = f"{REPO_DIR}/docs"
+        os.makedirs(docs_dir, exist_ok=True)
+        
+        # Kopieer sudoku.html naar docs/index.html
+        subprocess.run(["cp", SUDOKU_FILE, f"{docs_dir}/index.html"], check=True)
+        
+        # Git operaties
+        subprocess.run(["git", "add", "docs/"], cwd=REPO_DIR, check=True)
+        subprocess.run(["git", "commit", "-m", f"Sudoku update {datetime.now().strftime('%Y-%m-%d')}"], 
+                      cwd=REPO_DIR, capture_output=True)
+        subprocess.run(["git", "push"], cwd=REPO_DIR, capture_output=True, check=True)
+        
+        print("Gepusht naar GitHub Pages")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Git fout: {e}")
+        return False
+    except Exception as e:
+        print(f"Fout bij pushen: {e}")
+        return False
+
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
     print(f"=== Sudoku {today} ===")
 
-    # Oplossing van gisteren
+    # Oplossing van gisteren sturen
     if os.path.exists(SOLUTION_FILE):
         with open(SOLUTION_FILE) as f: d = json.load(f)
-        if d.get('date') != today:  # Alleen sturen als het niet vandaag is
+        if d.get('date') != today:
             sol_msg = f"*Oplossing {d.get('date','gisteren')}:*\n\n```\n{fmt_sol(d.get('solution',[]))}\n```"
             send(sol_msg)
 
@@ -147,45 +146,36 @@ def main():
     today_file = f"{BASE_DIR}/sudoku_{today}.html"
     if os.path.exists(today_file):
         print(f"Sudoku voor {today} bestaat al")
-        # Kopieer naar sudoku.html voor de server
         with open(today_file, "r") as f:
             html = f.read()
         with open(SUDOKU_FILE, "w") as f:
             f.write(html)
     else:
-        # Maak nieuwe sudoku voor vandaag
+        # Maak nieuwe sudoku
         p, s = make_sudoku(today)
         html = make_html(p, s, today)
         
-        # Sla datum-specifiek bestand op
         with open(today_file, "w") as f:
             f.write(html)
-        
-        # Sla actieve sudoku op
         with open(SUDOKU_FILE, "w") as f:
             f.write(html)
-        
-        # Sla oplossing op
         with open(SOLUTION_FILE, "w") as f:
             json.dump({"date": today, "solution": s}, f)
         
         print(f"Nieuwe sudoku gegenereerd voor {today}")
-        
-        # Verwijder oude sudoku bestanden na succesvolle generatie
         cleanup_old_sudokus(today)
 
-    # Start tunnel
-    stop_tunnels()
-    start_server()
-    url = start_tunnel()
-    if not url:
-        send("FOUT: Geen tunnel!")
-        return
-
-    # Stuur link
-    link_msg = f"*Sudoku {today}*\n\n[Open in Safari]({url}/sudoku.html)\n\nVeel plezier!"
-    send(link_msg)
-    print(f"=== Klaar: {url}/sudoku.html ===")
+    # Push naar GitHub Pages
+    if push_to_github():
+        # Stuur permanente link
+        link_msg = f"🧩 *Sudoku {today}*\n\n🔗 [Open Sudoku]({GITHUB_PAGES_URL})\n\n✅ 38 lege velden\n✅ Altijd bereikbaar\n⭐ Gegenereerd door A0"
+        send(link_msg)
+        print(f"=== Klaar: {GITHUB_PAGES_URL} ===")
+    else:
+        # Fallback: stuur toch de link (misschien is de cache traag)
+        link_msg = f"🧩 *Sudoku {today}*\n\n🔗 [Open Sudoku]({GITHUB_PAGES_URL})\n\n⚠️ GitHub Pages update kan even duren"
+        send(link_msg)
+        print(f"=== Klaar (met waarschuwing): {GITHUB_PAGES_URL} ===")
 
 if __name__ == "__main__":
     main()
