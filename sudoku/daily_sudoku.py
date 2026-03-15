@@ -42,7 +42,12 @@ def start_tunnel():
         time.sleep(1)
     return None
 
-def make_sudoku():
+def make_sudoku(date_str):
+    """Genereer een unieke sudoku gebaseerd op de datum"""
+    # Gebruik datum als seed voor reproduceerbare maar dagelijkse variatie
+    seed = int(date_str.replace("-", ""))
+    random.seed(seed)
+    
     def valid(b, r, c, n):
         for i in range(9):
             if b[r][i] == n or b[i][c] == n: return False
@@ -51,23 +56,33 @@ def make_sudoku():
             for j in range(bc, bc+3):
                 if b[i][j] == n: return False
         return True
+    
     def solve(b):
         for i in range(9):
             for j in range(9):
                 if b[i][j] == 0:
-                    for n in range(1, 10):
+                    for n in random.sample(range(1, 10), 9):  # Random volgorde
                         if valid(b, i, j, n):
                             b[i][j] = n
                             if solve(b): return True
                             b[i][j] = 0
                     return False
         return True
+    
+    # Start met leeg bord en vul het op
     b = [[0]*9 for _ in range(9)]
     solve(b)
     sol = [r[:] for r in b]
+    
+    # Verwijder cellen voor de puzzle - minder verwijderen = makkelijker
+    # 28-30 lege cellen = makkelijk, 35 = gemiddeld, 40+ = moeilijk
     pos = [(i,j) for i in range(9) for j in range(9)]
     random.shuffle(pos)
-    for i,j in pos[:35]: b[i][j] = 0
+    for i,j in pos[:28]:  # 28 lege cellen = makkelijker puzzle
+        b[i][j] = 0
+    
+    # Reset random seed voor toekomstige random operaties
+    random.seed()
     return b, sol
 
 def fmt_sol(s):
@@ -104,8 +119,37 @@ def main():
     # Oplossing van gisteren
     if os.path.exists(SOLUTION_FILE):
         with open(SOLUTION_FILE) as f: d = json.load(f)
-        sol_msg = f"*Oplossing {d.get('date','gisteren')}:*\n\n```\n{fmt_sol(d.get('solution',[]))}\n```"
-        send(sol_msg)
+        if d.get('date') != today:  # Alleen sturen als het niet vandaag is
+            sol_msg = f"*Oplossing {d.get('date','gisteren')}:*\n\n```\n{fmt_sol(d.get('solution',[]))}\n```"
+            send(sol_msg)
+
+    # Controleer of er al een sudoku is voor vandaag
+    today_file = f"{BASE_DIR}/sudoku_{today}.html"
+    if os.path.exists(today_file):
+        print(f"Sudoku voor {today} bestaat al")
+        # Kopieer naar sudoku.html voor de server
+        with open(today_file, "r") as f:
+            html = f.read()
+        with open(SUDOKU_FILE, "w") as f:
+            f.write(html)
+    else:
+        # Maak nieuwe sudoku voor vandaag
+        p, s = make_sudoku(today)
+        html = make_html(p, s, today)
+        
+        # Sla datum-specifiek bestand op
+        with open(today_file, "w") as f:
+            f.write(html)
+        
+        # Sla actieve sudoku op
+        with open(SUDOKU_FILE, "w") as f:
+            f.write(html)
+        
+        # Sla oplossing op
+        with open(SOLUTION_FILE, "w") as f:
+            json.dump({"date": today, "solution": s}, f)
+        
+        print(f"Nieuwe sudoku gegenereerd voor {today}")
 
     # Start tunnel
     stop_tunnels()
@@ -114,11 +158,6 @@ def main():
     if not url:
         send("FOUT: Geen tunnel!")
         return
-
-    # Maak sudoku
-    p, s = make_sudoku()
-    with open(SUDOKU_FILE, "w") as f: f.write(make_html(p, s, today))
-    with open(SOLUTION_FILE, "w") as f: json.dump({"date": today, "solution": s}, f)
 
     # Stuur link
     link_msg = f"*Sudoku {today}*\n\n[Open in Safari]({url}/sudoku.html)\n\nVeel plezier!"
