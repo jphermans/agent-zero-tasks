@@ -6,6 +6,7 @@ import random
 import requests
 import subprocess
 import os
+import hashlib
 from datetime import datetime
 
 # Haal tokens uit omgevingsvariabelen
@@ -17,13 +18,20 @@ BASE_DIR = "/a0/usr/workdir/sudoku_data"
 REPO_DIR = "/a0/usr/workdir/agent-zero-tasks"
 SUDOKU_FILE = f"{BASE_DIR}/sudoku.html"
 SOLUTION_FILE = f"{BASE_DIR}/latest_solution.json"
+PREVIOUS_SOLUTION_FILE = f"{BASE_DIR}/previous_solution.json"
 GITHUB_PAGES_URL = "https://jphermans.github.io/agent-zero-tasks/"
 
 def make_sudoku(date_str):
     """Genereer een unieke sudoku gebaseerd op de datum"""
-    seed = int(date_str.replace("-", ""))
+    # Combineer datum met extra entropie voor uniciteit
+    base_seed = int(date_str.replace("-", ""))
+    # Voeg microseconden toe voor extra willekeurigheid
+    extra_entropy = int(datetime.now().microsecond)
+    seed = base_seed + extra_entropy
     random.seed(seed)
-    
+
+    print(f"Generating sudoku with seed: {seed} (date: {date_str})")
+
     def valid(b, r, c, n):
         for i in range(9):
             if b[r][i] == n or b[i][c] == n: return False
@@ -32,7 +40,7 @@ def make_sudoku(date_str):
             for j in range(bc, bc+3):
                 if b[i][j] == n: return False
         return True
-    
+
     def solve(b):
         for i in range(9):
             for j in range(9):
@@ -44,18 +52,24 @@ def make_sudoku(date_str):
                             b[i][j] = 0
                     return False
         return True
-    
+
     b = [[0]*9 for _ in range(9)]
     solve(b)
     sol = [r[:] for r in b]
-    
+
+    # Reset random voor het verwijderen van cellen
+    random.seed(seed + 1000)
     pos = [(i,j) for i in range(9) for j in range(9)]
     random.shuffle(pos)
     for i,j in pos[:38]:  # 38 lege cellen = moeilijker
         b[i][j] = 0
-    
+
     random.seed()
     return b, sol
+
+def get_sudoku_hash(solution):
+    """Genereer een hash van de oplossing voor vergelijking"""
+    return hashlib.md5(json.dumps(solution).encode()).hexdigest()
 
 def fmt_sol(s):
     l = ["+-----+-----+-----+"]
@@ -96,7 +110,7 @@ def cleanup_old_sudokus(today):
     """Verwijder oude sudoku bestanden"""
     import re
     date_pattern = re.compile(r'sudoku_\d{4}-\d{2}-\d{2}\.html$')
-    
+
     for f in os.listdir(BASE_DIR):
         if date_pattern.match(f):
             if f != f"sudoku_{today}.html":
@@ -109,19 +123,16 @@ def cleanup_old_sudokus(today):
 def push_to_github():
     """Push sudoku naar GitHub Pages"""
     try:
-        # Kopieer sudoku naar docs folder
         docs_dir = f"{REPO_DIR}/docs"
         os.makedirs(docs_dir, exist_ok=True)
-        
-        # Kopieer sudoku.html naar docs/index.html
+
         subprocess.run(["cp", SUDOKU_FILE, f"{docs_dir}/index.html"], check=True)
-        
-        # Git operaties
+
         subprocess.run(["git", "add", "docs/"], cwd=REPO_DIR, check=True)
-        subprocess.run(["git", "commit", "-m", f"Sudoku update {datetime.now().strftime('%Y-%m-%d')}"], 
+        subprocess.run(["git", "commit", "-m", f"Sudoku update {datetime.now().strftime('%Y-%m-%d')}"],
                       cwd=REPO_DIR, capture_output=True)
         subprocess.run(["git", "push"], cwd=REPO_DIR, capture_output=True, check=True)
-        
+
         print("Gepusht naar GitHub Pages")
         return True
     except subprocess.CalledProcessError as e:
@@ -151,29 +162,57 @@ def main():
         with open(SUDOKU_FILE, "w") as f:
             f.write(html)
     else:
-        # Maak nieuwe sudoku
-        p, s = make_sudoku(today)
+        # Laad vorige oplossing voor vergelijking
+        previous_solution = None
+        if os.path.exists(SOLUTION_FILE):
+            with open(SOLUTION_FILE) as f:
+                prev_data = json.load(f)
+                previous_solution = prev_data.get('solution')
+                # Sla op als previous_solution
+                with open(PREVIOUS_SOLUTION_FILE, "w") as pf:
+                    json.dump(prev_data, pf)
+
+        # Maak nieuwe sudoku met uniciteitscontrole
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            p, s = make_sudoku(today)
+
+            if previous_solution:
+                current_hash = get_sudoku_hash(s)
+                previous_hash = get_sudoku_hash(previous_solution)
+
+                if current_hash == previous_hash:
+                    print(f"WAARSCHUWING: Zelfde sudoku gegenereerd! Poging {attempt + 1}/{max_attempts}")
+                    if attempt < max_attempts - 1:
+                        continue
+                    else:
+                        print(f"Kon geen unieke sudoku genereren na {max_attempts} pogingen")
+                else:
+                    print(f"Unieke sudoku gegenereerd (hash: {current_hash[:8]}...)")
+                    break
+            else:
+                print("Eerste sudoku gegenereerd")
+                break
+
         html = make_html(p, s, today)
-        
+
         with open(today_file, "w") as f:
             f.write(html)
         with open(SUDOKU_FILE, "w") as f:
             f.write(html)
         with open(SOLUTION_FILE, "w") as f:
-            json.dump({"date": today, "solution": s}, f)
-        
+            json.dump({"date": today, "solution": s, "hash": get_sudoku_hash(s)}, f)
+
         print(f"Nieuwe sudoku gegenereerd voor {today}")
         cleanup_old_sudokus(today)
 
     # Push naar GitHub Pages
     if push_to_github():
-        # Stuur permanente link
-        link_msg = f"🧩 *Sudoku {today}*\n\n🔗 [Open Sudoku]({GITHUB_PAGES_URL})\n\n✅ 38 lege velden\n✅ Altijd bereikbaar\n⭐ Gegenereerd door A0"
+        link_msg = f"Sudoku {today} - Open: {GITHUB_PAGES_URL}"
         send(link_msg)
         print(f"=== Klaar: {GITHUB_PAGES_URL} ===")
     else:
-        # Fallback: stuur toch de link (misschien is de cache traag)
-        link_msg = f"🧩 *Sudoku {today}*\n\n🔗 [Open Sudoku]({GITHUB_PAGES_URL})\n\n⚠️ GitHub Pages update kan even duren"
+        link_msg = f"Sudoku {today} - Open: {GITHUB_PAGES_URL} (GitHub Pages update kan even duren)"
         send(link_msg)
         print(f"=== Klaar (met waarschuwing): {GITHUB_PAGES_URL} ===")
 
