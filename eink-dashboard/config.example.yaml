@@ -1,0 +1,56 @@
+# E-Ink Dashboard Configuration
+# Copy this file to config.yaml and fill in your values
+# NEVER commit config.yaml with real secrets!
+
+# Dashboard settings
+refresh_interval: 900    # Auto-refresh interval in seconds (default: 15 min)
+kiosk_interval: 30       # Seconds per view in kiosk mode
+default_view: 0          # Start on this view (0-6)
+simulation: false        # Set true for development without hardware
+
+# ─── Weather (OpenWeatherMap) ───
+weather:
+  enabled: true
+  api_key: ""            # Get your free key at: https://openweathermap.org/api
+  location: "London,UK"  # City name or "lat,lon" e.g. "51.5074,-0.1278"
+  units: "metric"        # "metric" (C) or "imperial" (F)
+
+# ─── Google Calendar ───
+google:
+  enabled: false
+  credentials_file: "credentials.json"   # Path to OAuth credentials JSON
+  token_file: "token.json"               # Auto-generated after first auth
+  # Setup: https://developers.google.com/calendar/api/quickstart/python
+
+# ─── Email (IMAP) ───
+email:
+  enabled: false
+  server: ""             # e.g. "imap.gmail.com", "imap.fastmail.com"
+  port: 993
+  user: ""               # Your email address
+  password: ""           # App-specific password (NOT your regular password)
+  # Gmail: need app password + enable IMAP
+  # Fastmail: generate app password in settings
+
+# ─── Home Assistant ───
+homeassistant:
+  enabled: false
+  url: ""                # e.g. "http://homeassistant.local:8123"
+  token: ""              # Long-lived access token (HA > Profile > Security > Tokens)
+  entities:              # List of entity IDs to display
+    # - "sensor.living_room_temperature"
+    # - "sensor.outdoor_temperature"
+    # - "light.living_room"
+    # - "switch.coffee_maker"
+
+# ─── Finance / Crypto ───
+finance:
+  enabled: true
+  coins:
+    - "bitcoin"
+    - "ethereum"
+  currency: "usd"        # Display currency
+  # Full coin list: https://api.coingecko.com/api/v3/coins/list
+
+# ─── Tasks ───
+tasks_file: "tasks.json"  # Local JSON file for task list

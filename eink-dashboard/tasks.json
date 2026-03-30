@@ -1,0 +1,32 @@
+[
+  {
+    "text": "Set up e-ink dashboard",
+    "done": true,
+    "priority": "high"
+  },
+  {
+    "text": "Configure weather API key",
+    "done": false,
+    "priority": "high"
+  },
+  {
+    "text": "Add Google Calendar credentials",
+    "done": false,
+    "priority": "medium"
+  },
+  {
+    "text": "Set up IMAP email access",
+    "done": false,
+    "priority": "medium"
+  },
+  {
+    "text": "Connect Home Assistant",
+    "done": false,
+    "priority": "low"
+  },
+  {
+    "text": "Customize dashboard layout",
+    "done": false,
+    "priority": "low"
+  }
+]

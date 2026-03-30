@@ -1,0 +1,40 @@
+# Secrets
+config.yaml
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+venv/
+.venv/
+
+# Cache and logs
+cache/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fonts (download separately)
+fonts/*.ttf
+fonts/*.otf
+
+# Generated images
+*.png
+!icons/*.png

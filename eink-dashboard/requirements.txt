@@ -1,0 +1,14 @@
+# Core dependencies
+Pillow>=10.0.0
+PyYAML>=6.0
+requests>=2.31.0
+
+# Raspberry Pi hardware (install on Pi only)
+# Uncomment the following lines when running on Raspberry Pi:
+# inky>=1.4.0
+# gpiozero>=2.0
+
+# Google Calendar API (optional)
+# google-api-python-client>=2.100.0
+# google-auth-httplib2>=0.1.0
+# google-auth-oauthlib>=1.0.0
